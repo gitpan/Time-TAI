@@ -1,15 +1,18 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         Time-TAI
-version:      0.000
+version:      0.001
 version_from: lib/Time/TAI.pm
 installdirs:  site
 requires:
-    LWP:                           5.53_94
-    LWP::UserAgent:                
+    LWP:                           5.5394
+    LWP::UserAgent:                0
     Math::BigRat:                  0.04
-    Math::Interpolator:            0.000
-    Time::TT:                      0.000
+    Math::Interpolator::Robust:    0.000
+    Math::Interpolator::Source:    0.000
+    Time::TT::InterpolatingRealisation: 0.000
+    Time::TT::OffsetKnot:          0.000
+    Time::TT::Realisation:         0.000
 
 distribution_type: module
 generated_by: ExtUtils::MakeMaker version 6.30

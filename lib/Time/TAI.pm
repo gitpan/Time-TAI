@@ -51,10 +51,13 @@ conversion of times between different realisations of TAI.
 
 package Time::TAI;
 
+use warnings;
+use strict;
+
 use Carp qw(croak);
 use Math::BigRat 0.04;
 
-our $VERSION = "0.000";
+our $VERSION = "0.001";
 
 use base qw(Exporter);
 our @EXPORT_OK = qw(tai_instant_to_mjd tai_mjd_to_instant tai_realisation);
@@ -569,7 +572,7 @@ my %multiscale = (
 sub multiscale_source($$) {
 	my($k, $source) = @_;
 	my $metadata = $multiscale{$source};
-	die "multi-scale data requsted from unknown source `$id'\n"
+	die "multi-scale data requsted from unknown source `$source'\n"
 		unless defined $metadata;
 	require Math::Interpolator::Source;
 	return Math::Interpolator::Source->new(
