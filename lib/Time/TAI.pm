@@ -57,7 +57,7 @@ use strict;
 use Carp qw(croak);
 use Math::BigRat 0.04;
 
-our $VERSION = "0.001";
+our $VERSION = "0.002";
 
 use base qw(Exporter);
 our @EXPORT_OK = qw(tai_instant_to_mjd tai_mjd_to_instant tai_realisation);
@@ -116,15 +116,15 @@ the UK.  Other real-time estimates of TAI are named similarly using an
 abbreviation of the name of the supplying agency.  The names recognised
 are:
 
-    aos   cnmp  gps   jatc  naom  nmij  onba  rc    su    yuzm
-    apl   crl   gum   jv    naot  nml   onrj  roa   tao   zipe
-    asmw  csao  hko   kris  nict  nmls  op    scl   tcc
-    aus   csir  ien   ksri  nim   npl   orb   sg    tl
-    bev   dlr   ifag  lds   nimb  npli  pel   smu   tp
-    birm  dpt   igma  lt    nimt  nrc   pknm  snt   tug
-    cao   dtag  inpl  mike  nis   nrlm  pl    so    ume
-    ch    ftz   ipq   msl   nist  ntsc  psb   sp    usno
-    cnm   glo   it    nao   nmc   omh   ptb   sta   vsl
+    aos   cnm   glo   it    msl   nist  ntsc  psb   sp    usno
+    apl   cnmp  gps   jatc  nao   nmc   omh   ptb   sta   vsl
+    asmw  crl   gum   jv    naom  nmij  onba  rc    su    yuzm
+    aus   csao  hko   kris  naot  nml   onrj  roa   tao   za
+    bev   csir  ien   ksri  nict  nmls  op    scl   tcc   zipe
+    bim   dlr   ifag  lds   nim   npl   orb   sg    tl
+    birm  dpt   igma  lt    nimb  npli  pel   smu   tp
+    cao   dtag  inpl  mike  nimt  nrc   pknm  snt   tug
+    ch    ftz   ipq   mkeh  nis   nrlm  pl    so    ume
 
 See L<Time::TT::Agencies> for expansions of these abbreviations.
 
@@ -207,7 +207,8 @@ my $nl_rx = qr/\r?\n(?:\ *\r?\n)*/;
 
 sub parse_utck_file($$$) {
 	my($content, $min_mjd, $max_mjd) = @_;
-	$content =~ /\A\ *MJD\ +\[UTC-UTC\([A-Z]+\ *\)\]\/ns\ *${nl_rx}
+	$content =~ /\A\ *MJD\ +\[UTC-UTC\([A-Z]+\ *\)\]\/ns
+		     (?:\ [^\n]*)?${nl_rx}
 		     (?>\ *\d+\ +(?:-|-?\d+(?:\.\d+)?)(?:\ [^\n]*)?${nl_rx})*
 		     \x{1a}?\z/xo
 		or die "doesn't look like a UTC-UTC(k) file\n";
@@ -656,6 +657,7 @@ my %realisation = (
 	asmw => "< u90 >",
 	aus  => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	bev  => "< u90 u91 u92 u93 u94 u95 u96 !u97 ?u98 u",
+	bim  => "< :nmc u91 u92 u93 !u94 ?u :bim u",
 	birm => "u95 u96 u97 ?u98 u",
 	cao  => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	ch   => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
@@ -663,9 +665,9 @@ my %realisation = (
 	cnmp => "u",
 	crl  => "=nict",
 	csao => "=ntsc",
-	csir => "< :dpt u90 u91 u92 :csir u93 u94 u95 u96 u97 ?u98 u",
+	csir => "=za",
 	dlr  => "u96 u97 ?u98 u",
-	dpt  => "=csir",
+	dpt  => "=za",
 	dtag => "< :ftz u90 u91 u92 u93 u94 u95 :dtag u96 u97 ?u98 u",
 	ftz  => "=dtag",
 	glo  => "< g93 g94 g95 g96 g97 g98 g99 g00 g01 g02 g03 gg03 gg04 >",
@@ -685,6 +687,7 @@ my %realisation = (
 	lds  => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	lt   => "u",
 	mike => "u",
+	mkeh => "< :omh u90 u91 u92 u93 u94 u95 u96 u97 ?u98 ?u :mkeh u",
 	msl  => "< :pel u90 u91 :msl u92 u93 u94 u95 u96 u97 ?u98 u",
 	nao  => "< :naom u90 u91 u92 u93 u94 u95 u96 :nao u97 ?u98 u",
 	naom => "=nao",
@@ -695,7 +698,7 @@ my %realisation = (
 	nimt => "u",
 	nis  => "u",
 	nist => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
-	nmc  => "< u91 u92 u93 !u94 u",
+	nmc  => "=bim",
 	nmij => "< :nrlm u90 u91 u92 u93 u94 u95 u96 u97 ?u98 ?u :nmij u",
 	nml  => "u97 u98",
 	nmls => "u",
@@ -704,7 +707,7 @@ my %realisation = (
 	nrc  => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	nrlm => "=nmij",
 	ntsc => "< :csao u90 u91 u92 u93 u94 u95 u96 u97 ?u98 ?u :ntsc u",
-	omh  => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
+	omh  => "=mkeh",
 	onba => "< u92 u93 u94 u95 u96 u97 ?u98 u",
 	onrj => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	op   => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
@@ -733,6 +736,7 @@ my %realisation = (
 	usno => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	vsl  => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	yuzm => "< u90 u91 !u92 >",
+	za   => "< :dpt u90 u91 u92 :csir u93 u94 u95 u96 u97 ?u98 ?u :za u",
 	zipe => "< u90 u91 >",
 );
 
@@ -814,6 +818,7 @@ inaccurate results in the immediate vicinity of such discontinuities.
 
 L<Date::JD>,
 L<Time::GPS>,
+L<Time::TAI::Now>,
 L<Time::TT>,
 L<Time::TT::Agencies>,
 L<Time::TT::Realisation>,
@@ -825,7 +830,7 @@ Andrew Main (Zefram) <zefram@fysh.org>
 
 =head1 COPYRIGHT
 
-Copyright (C) 2006 Andrew Main (Zefram) <zefram@fysh.org>
+Copyright (C) 2006, 2007 Andrew Main (Zefram) <zefram@fysh.org>
 
 This module is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

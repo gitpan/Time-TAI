@@ -1,3 +1,15 @@
+version 0.002; 2007-02-20
+
+  * accept new style of utc-* files which contains uncertainty data
+    (not yet doing anything with the uncertainty data)
+
+  * recognise new agency names BIM (formerly NMC), MKEH (formerly OMH),
+    and ZA (formerly CSIR), and update their recipes for the new filenames
+
+  * in documentation, reference Time::TAI::Now
+
+  * test explicitly for correct class of result
+
 version 0.001; 2006-08-03
 
   * list exact required modules in Makefile.PL
