@@ -23,12 +23,13 @@ the interface.
 
 package Time::TAI::Realisation_TAI;
 
+{ use 5.006; }
 use warnings;
 use strict;
 
-our $VERSION = "0.002";
+our $VERSION = "0.003";
 
-use base qw(Time::TT::Realisation);
+use parent "Time::TT::Realisation";
 
 =head1 CONSTRUCTOR
 
@@ -44,9 +45,23 @@ Returns the sole object of this class.
 =cut
 
 my $instance = bless({});
-sub new($) { $instance }
+sub new { $instance }
 
-sub to_tai($$) { $_[1] }
+=back
+
+=head1 METHODS
+
+=over
+
+=item $rln->to_tai(INSTANT)
+
+=item $rln->from_tai(TAI_INSTANT)
+
+These methods are part of the standard C<Time::TT::Realisation> interface.
+
+=cut
+
+sub to_tai { $_[1] }
 *from_tai = \&to_tai;
 
 =back
@@ -62,7 +77,9 @@ Andrew Main (Zefram) <zefram@fysh.org>
 
 =head1 COPYRIGHT
 
-Copyright (C) 2006, 2007 Andrew Main (Zefram) <zefram@fysh.org>
+Copyright (C) 2006, 2007, 2010 Andrew Main (Zefram) <zefram@fysh.org>
+
+=head1 LICENSE
 
 This module is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

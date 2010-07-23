@@ -51,15 +51,16 @@ conversion of times between different realisations of TAI.
 
 package Time::TAI;
 
+{ use 5.006; }
 use warnings;
 use strict;
 
 use Carp qw(croak);
 use Math::BigRat 0.04;
 
-our $VERSION = "0.002";
+our $VERSION = "0.003";
 
-use base qw(Exporter);
+use parent "Exporter";
 our @EXPORT_OK = qw(tai_instant_to_mjd tai_mjd_to_instant tai_realisation);
 
 =head1 FUNCTIONS
@@ -116,15 +117,16 @@ the UK.  Other real-time estimates of TAI are named similarly using an
 abbreviation of the name of the supplying agency.  The names recognised
 are:
 
-    aos   cnm   glo   it    msl   nist  ntsc  psb   sp    usno
-    apl   cnmp  gps   jatc  nao   nmc   omh   ptb   sta   vsl
-    asmw  crl   gum   jv    naom  nmij  onba  rc    su    yuzm
-    aus   csao  hko   kris  naot  nml   onrj  roa   tao   za
-    bev   csir  ien   ksri  nict  nmls  op    scl   tcc   zipe
-    bim   dlr   ifag  lds   nim   npl   orb   sg    tl
-    birm  dpt   igma  lt    nimb  npli  pel   smu   tp
-    cao   dtag  inpl  mike  nimt  nrc   pknm  snt   tug
-    ch    ftz   ipq   mkeh  nis   nrlm  pl    so    ume
+    aos   cnm   ftz   inti  lt    nimb  nrc   pknm  smu   tug
+    apl   cnmp  glo   ipq   lv    nimt  nrl   pl    snt   ua
+    asmw  crl   gps   it    mike  nis   nrlm  psb   so    ume
+    aus   csao  gum   jatc  mkeh  nist  ntsc  ptb   sp    usno
+    bev   csir  hko   jv    msl   nmc   omh   rc    sta   vmi
+    bim   dlr   ien   kim   nao   nmij  onba  roa   su    vsl
+    birm  dmdm  ifag  kris  naom  nml   onrj  scl   tao   yuzm
+    by    dpt   igma  ksri  naot  nmls  op    sg    tcc   za
+    cao   dtag  igna  kz    nict  npl   orb   siq   tl    zipe
+    ch    eim   inpl  lds   nim   npli  pel   smd   tp    zmdm
 
 See L<Time::TT::Agencies> for expansions of these abbreviations.
 
@@ -137,7 +139,6 @@ see L</BUGS>.
 The relationships between these scales and TAI are defined by isolated
 data points, so conversions in general involve interpolation.  The process
 is by its nature inexact.
-
 
 =back
 
@@ -188,10 +189,11 @@ use constant UTC_2003_07 => Math::BigRat->new(1435708832);
 use constant UTC_2004_07 => Math::BigRat->new(1467331232);
 use constant UTC_2005_07 => Math::BigRat->new(1498867232);
 
-sub get_bipm_file($) {
+sub _get_bipm_file($) {
 	my($fn) = @_;
-	require LWP::UserAgent;
+	require LWP;
 	LWP->VERSION(5.53_94);
+	require LWP::UserAgent;
 	my $response = LWP::UserAgent->new
 				->get("ftp://ftp2.bipm.fr/pub/tai/$fn");
 	croak "can't download $fn: ".$response->message
@@ -205,19 +207,22 @@ my $nl_rx = qr/\r?\n(?:\ *\r?\n)*/;
 # UTC(k) data from utc-* files
 #
 
-sub parse_utck_file($$$) {
+sub _parse_utck_file($$$) {
 	my($content, $min_mjd, $max_mjd) = @_;
 	$content =~ /\A\ *MJD\ +\[UTC-UTC\([A-Z]+\ *\)\]\/ns
 		     (?:\ [^\n]*)?${nl_rx}
-		     (?>\ *\d+\ +(?:-|-?\d+(?:\.\d+)?)(?:\ [^\n]*)?${nl_rx})*
+		     (?>\ *[0-9]+\ +(?:-|-?[0-9]+(?:\.[0-9]+)?)
+		     (?:\ [^\n]*)?${nl_rx})*
 		     \x{1a}?\z/xo
 		or die "doesn't look like a UTC-UTC(k) file\n";
 	require Time::TT::OffsetKnot;
+	Time::TT::OffsetKnot->VERSION(0.004);
 	my @data;
 	my $last_mjd = 0;
 	my $last_nonzero_mjd = 0;
 	my $consecutive_zeroes = 0;
-	while($content =~ /^\ *(\d+)\ +([-+]?\d+(?:\.\d+)?)[\ \r\n]/mg) {
+	while($content =~ /^\ *([0-9]+)\ +([-+]?[0-9]+(?:\.[0-9]+)?)
+				[\ \r\n]/xmg) {
 		my($mjd, $offset_ns) = ($1, $2);
 		die "data out of order at mjd=$mjd" unless $mjd > $last_mjd;
 		$last_mjd = $mjd;
@@ -237,8 +242,8 @@ sub parse_utck_file($$$) {
 	return (\@data, $last_nonzero_mjd);
 }
 
-sub utck_file_source($$$;$);
-sub utck_file_source($$$;$) {
+sub _utck_file_source($$$;$);
+sub _utck_file_source($$$;$) {
 	my($k, $rep_date, $min_mjd, $rpt) = @_;
 	my $max_mjd;
 	if(!defined($rpt)) {
@@ -261,12 +266,12 @@ sub utck_file_source($$$;$) {
 					$time + 86400 + rand(86400);
 			}
 			my($data, $last_mjd) =
-				parse_utck_file(
-					get_bipm_file("publication/utc-$k"),
+				_parse_utck_file(
+					_get_bipm_file("publication/utc-$k"),
 					$min_mjd, $max_mjd);
 			croak "no more data for TT(TAI(".uc($k).")) available"
 				unless @$data;
-			push @$data, utck_file_source($k,
+			push @$data, _utck_file_source($k,
 					$data->[-1]->x + 1000000,
 					$last_mjd + 1, $rpt)
 				if defined $rpt;
@@ -279,27 +284,29 @@ sub utck_file_source($$$;$) {
 # UTC(k) data from utc.?? and utc??.ar files
 #
 
-sub parse_utcyr_file($$$) {
+sub _parse_utcyr_file($$$) {
 	my($content, $min_mjd, $max_mjd) = @_;
 	$content =~ /\A\ *Values\ of\ UTC-UTC\(laboratory\)\ for
 		     (?>[^\n]+\n)+\n
 		     ((?>(?>\ {5}(?:\ {4}[A-Z\ ]{4}){8}\n)+))
-		     (?>\d{5}
-			(?:[\ \-\+][\ \-\+\d]{3}\.(?:\d{3}|0\ \ )|\ {8}){8}\n)+
+		     (?>[0-9]{5}
+			(?:[\ \-\+][\ \-\+0-9]{3}\.(?:[0-9]{3}|0\ \ )
+			  |\ {8}){8}\n)+
 		     \z/x
 		or die "doesn't look like a bulk UTC-UTC(k) file\n";
 	my @labs = map { [ map { lc } split ] } split(/\n/, $1);
 	require Time::TT::OffsetKnot;
+	Time::TT::OffsetKnot->VERSION(0.004);
 	my %data;
 	$content =~ /\n\n/g;
 	my $last_mjd = 0;
-	while($content =~ /^(\d{5})(.{64})\n/msg) {
+	while($content =~ /^([0-9]{5})(.{64})\n/msg) {
 		my($mjd, $numbers) = ($1, $2);
 		die "data out of order at mjd=$mjd" unless $mjd > $last_mjd;
 		$last_mjd = $mjd;
 		for(my $line = 0; $line != @labs; $line++) {
 			unless($line == 0) {
-				$content =~ /^(\d{5})(.{64})\n/msg
+				$content =~ /^([0-9]{5})(.{64})\n/msg
 					or die "incomplete data group\n";
 				($mjd, $numbers) = ($1, $2);
 				die "inconsistent data group\n"
@@ -316,7 +323,8 @@ sub parse_utcyr_file($$$) {
 				}
 				next if $num eq "   0.0  ";
 				die "malformed number\n"
-					unless $num =~ /\A *([-+]?\d+\.\d+)\z/;
+					unless $num =~ /\A\ *([-+]?[0-9]+
+							\.[0-9]+)\z/x;
 				push @{$data{$lab}},
 					Time::TT::OffsetKnot
 						->new($last_mjd, $1, 6);
@@ -326,18 +334,20 @@ sub parse_utcyr_file($$$) {
 	return \%data;
 }
 
-sub parse_utcyrar_file($$$) {
+sub _parse_utcyrar_file($$$) {
 	my($content, $min_mjd, $max_mjd) = @_;
-	$content =~ /\A\s*[^\n]*\ local\ representations\ of\ utc[\ :].*
-		     \sunit\ is\ one\ (micr|nan)osecond\./xsi
+	$content =~ /\A[\ \t\n]*[^\n]*\ local\ representations\ of\ utc[\ :].*
+		     [\ \t\n]unit\ is\ one\ (micr|nan)osecond\./xsi
 		or die "doesn't look like a bulk UTC-UTC(k) file\n";
 	my $unit = $1 =~ /\Amicr\z/i ? 6 : 9;
 	require Time::TT::OffsetKnot;
+	Time::TT::OffsetKnot->VERSION(0.004);
 	my %data;
 	my @labs;
 	while($content =~ /^\ *0h\ UTC((?:\ +[A-Z]{1,4})+)\ *[\r\n]
-			  |^\ *[A-Z][a-z]{2}\ +\d+\ +(\d+)
-			   ((?:\ +(?:-|[-+]?\d+(?:\.\d+)?))+)\ *[\r\n]/xmg) {
+			  |^\ *[A-Z][a-z]{2}\ +[0-9]+\ +([0-9]+)
+			   ((?:\ +(?:-|[-+]?[0-9]+(?:\.[0-9]+)?))+)
+			   \ *[\r\n]/xmg) {
 		my($labs, $mjd, $offsets) = ($1, $2, $3);
 		if(defined $labs) {
 			@labs = map { lc } split(" ", $labs);
@@ -378,19 +388,21 @@ sub parse_utcyrar_file($$$) {
 # UTC(GPS) & UTC(GLO) data from utcg(ps|lo)??.ar files
 #
 
-sub parse_gpsyr_file($$$) {
+sub _parse_gpsyr_file($$$) {
 	my($content, $min_mjd, $max_mjd) = @_;
-	$content =~ /\A\s*[^\n]*\[ *(?:tai|utc) *- *(?:gps|glonass) time\]/i
+	$content =~ /\A[\ \t\n]*[^\n]*
+			\[\ *(?:tai|utc)\ *-\ *(?:gps|glonass)\ time\]/xi
 		or die "doesn't look like a GPS file\n";
 	my $unit = $content =~ /\(Unit is one microsecond\)/ ? 6 : 9;
 	require Time::TT::OffsetKnot;
+	Time::TT::OffsetKnot->VERSION(0.004);
 	my @data;
 	my $last_mjd = 0;
 	# in some cases adjacent data lines are separated by a large number
 	# of spaces instead of by a newline character
-	while($content =~ /(?:^|\ {30})\ *[A-Z][a-z]{2}\ +\d+\ +(\d+)
-			   \ +([-+]?\d+(?:\.\d+)?)
-			   (?:\ +(?:-|[-+]?\d+(?:\.\d+)?)){1,2}
+	while($content =~ /(?:^|\ {30})\ *[A-Z][a-z]{2}\ +[0-9]+\ +([0-9]+)
+			   \ +([-+]?[0-9]+(?:\.[0-9]+)?)
+			   (?:\ +(?:-|[-+]?[0-9]+(?:\.[0-9]+)?)){1,2}
 			   (?:\ *[\r\n]|\ {30})/xmg) {
 		my($mjd, $offset) = ($1, $2);
 		unless($mjd > $last_mjd) {
@@ -454,7 +466,7 @@ my %gpsyr_year = (
 	},
 );
 
-sub gpsyr_file_source($$) {
+sub _gpsyr_file_source($$) {
 	my($k, $yr) = @_;
 	my $year = $gpsyr_year{$yr};
 	die "GPS-style data requested for unknown year `$yr'"
@@ -462,8 +474,8 @@ sub gpsyr_file_source($$) {
 	require Math::Interpolator::Source;
 	return Math::Interpolator::Source->new(
 		sub () {
-			return parse_gpsyr_file(
-					get_bipm_file("scale/utc$k$yr.ar"),
+			return _parse_gpsyr_file(
+					_get_bipm_file("scale/utc$k$yr.ar"),
 					$year->{min_mjd}, $year->{max_mjd});
 		},
 		$year->{rep_date}, $year->{rep_date});
@@ -473,17 +485,18 @@ sub gpsyr_file_source($$) {
 # UTC(GPS) & UTC(GLO) data from utcgpsglo??.ar files
 #
 
-sub parse_gpsgloyr_file($$$) {
+sub _parse_gpsgloyr_file($$$) {
 	my($content, $min_mjd, $max_mjd) = @_;
-	$content =~ /\A\s*Relations\ of\ UTC\ and\ TAI\ with
-		     \ GPS\ time\ and\ GLONASS\ time\s/x
+	$content =~ /\A[\ \t\n]*Relations\ of\ UTC\ and\ TAI\ with
+		     \ GPS\ time\ and\ GLONASS\ time[\ \t\n]/x
 		or die "doesn't look like a GPS/GLONASS file\n";
 	require Time::TT::OffsetKnot;
+	Time::TT::OffsetKnot->VERSION(0.004);
 	my(@gps, @glo);
 	my $last_mjd = 0;
-	while($content =~ /^\ *[A-Z]{3}\ +\d+\ +(\d+)
-			   \ +(-|[-+]?\d+(?:\.\d+)?)\ +\d+
-			   \ +(-|[-+]?\d+(?:\.\d+)?)\ +\d+
+	while($content =~ /^\ *[A-Z]{3}\ +[0-9]+\ +([0-9]+)
+			   \ +(-|[-+]?[0-9]+(?:\.[0-9]+)?)\ +[0-9]+
+			   \ +(-|[-+]?[0-9]+(?:\.[0-9]+)?)\ +[0-9]+
 			   \ *[\r\n]/xmg) {
 		my($mjd, $gps_offset_ns, $glo_offset_ns) = ($1, $2, $3);
 		die "data out of order at mjd=$mjd" unless $mjd > $last_mjd;
@@ -504,73 +517,73 @@ sub parse_gpsgloyr_file($$$) {
 my %multiscale = (
 	u90 => {
 		filename => "scale/utc.90",
-		parser => \&parse_utcyr_file,
+		parser => \&_parse_utcyr_file,
 		min_mjd => MJD_1990_01, max_mjd => MJD_1991_01,
 		rep_date => UTC_1990_07,
 	},
 	u91 => {
 		filename => "scale/utc.91",
-		parser => \&parse_utcyr_file,
+		parser => \&_parse_utcyr_file,
 		min_mjd => MJD_1991_01, max_mjd => MJD_1992_01,
 		rep_date => UTC_1991_07,
 	},
 	u92 => {
 		filename => "scale/utc.92",
-		parser => \&parse_utcyr_file,
+		parser => \&_parse_utcyr_file,
 		min_mjd => MJD_1992_01, max_mjd => MJD_1993_01,
 		rep_date => UTC_1992_07,
 	},
 	u93 => {
 		filename => "scale/utc93.ar",
-		parser => \&parse_utcyrar_file,
+		parser => \&_parse_utcyrar_file,
 		min_mjd => MJD_1993_01, max_mjd => MJD_1994_01,
 		rep_date => UTC_1993_07,
 	},
 	u94 => {
 		filename => "scale/utc94.ar",
-		parser => \&parse_utcyrar_file,
+		parser => \&_parse_utcyrar_file,
 		min_mjd => MJD_1994_01, max_mjd => MJD_1995_01,
 		rep_date => UTC_1994_07,
 	},
 	u95 => {
 		filename => "scale/utc95.ar",
-		parser => \&parse_utcyrar_file,
+		parser => \&_parse_utcyrar_file,
 		min_mjd => MJD_1995_01, max_mjd => MJD_1996_01,
 		rep_date => UTC_1995_07,
 	},
 	u96 => {
 		filename => "scale/utc96.ar",
-		parser => \&parse_utcyrar_file,
+		parser => \&_parse_utcyrar_file,
 		min_mjd => MJD_1996_01, max_mjd => MJD_1997_01,
 		rep_date => UTC_1996_07,
 	},
 	u97 => {
 		filename => "scale/utc97.ar",
-		parser => \&parse_utcyrar_file,
+		parser => \&_parse_utcyrar_file,
 		min_mjd => MJD_1997_01, max_mjd => MJD_1998_01,
 		rep_date => UTC_1997_07,
 	},
 	u98 => {
 		filename => "scale/utc98.ar",
-		parser => \&parse_utcyrar_file,
+		parser => \&_parse_utcyrar_file,
 		min_mjd => MJD_1998_01, max_mjd => MJD_1999_01,
 		rep_date => UTC_1998_07,
 	},
 	gg03 => {
 		filename => "scale/utcgpsglo03.ar",
-		parser => \&parse_gpsgloyr_file,
+		parser => \&_parse_gpsgloyr_file,
 		min_mjd => MJD_2003_04, max_mjd => MJD_2004_01,
 		rep_date => UTC_2003_07,
 	},
 	gg04 => {
 		filename => "scale/utcgpsglo04.ar",
-		parser => \&parse_gpsgloyr_file,
+		parser => \&_parse_gpsgloyr_file,
 		min_mjd => MJD_2004_01, max_mjd => MJD_2005_01,
 		rep_date => UTC_2004_07,
 	},
 );
 
-sub multiscale_source($$) {
+sub _multiscale_source($$) {
 	my($k, $source) = @_;
 	my $metadata = $multiscale{$source};
 	die "multi-scale data requsted from unknown source `$source'\n"
@@ -581,7 +594,7 @@ sub multiscale_source($$) {
 			my $data = $metadata->{data};
 			unless(defined $data) {
 				$data = $metadata->{parser}->(
-					get_bipm_file($metadata->{filename}),
+					_get_bipm_file($metadata->{filename}),
 					$metadata->{min_mjd},
 					$metadata->{max_mjd});
 				$metadata->{data} = $data;
@@ -595,7 +608,7 @@ sub multiscale_source($$) {
 # permanently-broken sources to represent missing data
 #
 
-sub bad_start_source($) {
+sub _bad_start_source($) {
 	my($k) = @_;
 	$k = uc($k);
 	require Math::Interpolator::Source;
@@ -606,7 +619,7 @@ sub bad_start_source($) {
 		UTC_1989_07, UTC_1989_07);
 }
 
-sub bad_end_source($) {
+sub _bad_end_source($) {
 	my($k) = @_;
 	$k = uc($k);
 	require Math::Interpolator::Source;
@@ -659,6 +672,7 @@ my %realisation = (
 	bev  => "< u90 u91 u92 u93 u94 u95 u96 !u97 ?u98 u",
 	bim  => "< :nmc u91 u92 u93 !u94 ?u :bim u",
 	birm => "u95 u96 u97 ?u98 u",
+	by   => "u",
 	cao  => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	ch   => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	cnm  => "u96 u97 ?u98 u",
@@ -667,8 +681,10 @@ my %realisation = (
 	csao => "=ntsc",
 	csir => "=za",
 	dlr  => "u96 u97 ?u98 u",
+	dmdm => "u",
 	dpt  => "=za",
 	dtag => "< :ftz u90 u91 u92 u93 u94 u95 :dtag u96 u97 ?u98 u",
+	eim  => "u",
 	ftz  => "=dtag",
 	glo  => "< g93 g94 g95 g96 g97 g98 g99 g00 g01 g02 g03 gg03 gg04 >",
 	gps  => "< g93 g94 g95 g96 g97 g98 g99 g00 g01 g02 g03 gg03 gg04 >",
@@ -676,16 +692,21 @@ my %realisation = (
 	hko  => "u",
 	ien  => "=it",
 	ifag => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
-	igma => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
+	igma => "=igna",
+	igna => "< :igma u90 u91 u92 u93 u94 u95 u96 u97 ?u98 :igna u",
 	inpl => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
+	inti => "u",
 	ipq  => "u95 u96 u97 ?u98 u",
 	it   => "< :ien u90 u91 u92 u93 u94 u95 u96 u97 ?u98 ?u :it u",
 	jatc => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	jv   => "u",
+	kim  => "u",
 	kris => "< :ksri u90 :kris u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	ksri => "=kris",
+	kz   => "u",
 	lds  => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	lt   => "u",
+	lv   => "u",
 	mike => "u",
 	mkeh => "< :omh u90 u91 u92 u93 u94 u95 u96 u97 ?u98 ?u :mkeh u",
 	msl  => "< :pel u90 u91 :msl u92 u93 u94 u95 u96 u97 ?u98 u",
@@ -705,6 +726,7 @@ my %realisation = (
 	npl  => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	npli => "< u90 u91 u92 u93 u94 !u95 !u96 ?u98 u",
 	nrc  => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
+	nrl  => "u",
 	nrlm => "=nmij",
 	ntsc => "< :csao u90 u91 u92 u93 u94 u95 u96 u97 ?u98 ?u :ntsc u",
 	omh  => "=mkeh",
@@ -721,6 +743,8 @@ my %realisation = (
 	roa  => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	scl  => "< u92 u93 u94 u95 u96 u97 ?u98 u",
 	sg   => ":psb u97 ?u98 ?u :sg u",
+	siq  => "u",
+	smd  => "u",
 	smu  => "?u98 u",
 	snt  => "< u91 u92 u93 u94 u95 >",
 	so   => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
@@ -732,12 +756,15 @@ my %realisation = (
 	tl   => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	tp   => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	tug  => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
+	ua   => "u",
 	ume  => "u94 u95 u96 u97 ?u98 u",
 	usno => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
+	vmi  => "u",
 	vsl  => "< u90 u91 u92 u93 u94 u95 u96 u97 ?u98 u",
 	yuzm => "< u90 u91 !u92 >",
 	za   => "< :dpt u90 u91 u92 :csir u93 u94 u95 u96 u97 ?u98 ?u :za u",
 	zipe => "< u90 u91 >",
+	zmdm => "=dmdm",
 );
 
 sub tai_realisation($);
@@ -758,25 +785,27 @@ sub tai_realisation($) {
 			foreach my $ingredient (split(/ /, $r)) {
 				if($ingredient =~ /\A[!?]/) {
 					# ignore this data
-				} elsif($ingredient =~ /\A(?:u|gg)\d\d\z/) {
-					push @parts, multiscale_source($k,
+				} elsif($ingredient =~
+						/\A(?:u|gg)[0-9][0-9]\z/) {
+					push @parts, _multiscale_source($k,
 						$ingredient);
 				} elsif($ingredient eq "u") {
-					push @parts, utck_file_source($k,
+					push @parts, _utck_file_source($k,
 						UTC_1998_07, MJD_1998_01);
 				} elsif($ingredient eq "u*gum") {
-					push @parts, utck_file_source($k,
+					push @parts, _utck_file_source($k,
 						UTC_1998_07,
 						MJD_1998_01, MJD_2001_07),
 				} elsif($ingredient eq "u*pl") {
-					push @parts, utck_file_source($k,
+					push @parts, _utck_file_source($k,
 						UTC_2002_07, MJD_2001_07);
-				} elsif($ingredient =~ /\Ag(\d\d)\z/) {
-					push @parts, gpsyr_file_source($k, $1);
+				} elsif($ingredient =~ /\Ag([0-9][0-9])\z/) {
+					push @parts,
+						_gpsyr_file_source($k, $1);
 				} elsif($ingredient eq "<") {
-					push @parts, bad_start_source($k);
+					push @parts, _bad_start_source($k);
 				} elsif($ingredient eq ">") {
-					push @parts, bad_end_source($k);
+					push @parts, _bad_end_source($k);
 				} elsif($ingredient =~ /\A:([a-z]+)\z/) {
 					$k = $1;
 				} else {
@@ -830,7 +859,9 @@ Andrew Main (Zefram) <zefram@fysh.org>
 
 =head1 COPYRIGHT
 
-Copyright (C) 2006, 2007 Andrew Main (Zefram) <zefram@fysh.org>
+Copyright (C) 2006, 2007, 2010 Andrew Main (Zefram) <zefram@fysh.org>
+
+=head1 LICENSE
 
 This module is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
